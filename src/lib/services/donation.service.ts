@@ -1,86 +1,106 @@
-import Donation, { IDonation } from '@/lib/models/Donation';
+import Donation from '@/lib/models/Donation';
 import Project from '@/lib/models/Project';
+import User from '@/lib/models/User';
 import { connectDB } from '@/lib/db/mongodb';
-import { NotFoundError, ValidationError } from '@/lib/utils/errors';
-import mongoose from 'mongoose';
+import { NotificationService } from './notification.service';
+import { UserService } from './user.service';
+import { nanoid } from 'crypto';
+
+const BADGES = {
+  firstDonation: { id: 'first_donation', name: 'First Donor', icon: '💝', description: 'Made your first donation' },
+  topSupporter: { id: 'top_supporter', name: 'Top Supporter', icon: '🏆', description: 'Donated over ₹10,000 total' },
+};
 
 export class DonationService {
-  static async createDonation(data: {
-    userId: string;
-    projectId: string;
-    message?: string;
+  static async donate(userId: string, projectId: string, data: {
+    type: 'money' | 'items' | 'both';
     amount?: number;
-  }): Promise<IDonation> {
+    items?: { name: string; quantity: number }[];
+    message?: string;
+    isAnonymous?: boolean;
+    isRecurring?: boolean;
+    recurringInterval?: 'monthly' | 'weekly';
+  }) {
     await connectDB();
 
-    const project = await Project.findById(data.projectId);
-    if (!project) {
-      throw new NotFoundError('Project');
-    }
-
-    const existingDonation = await Donation.findOne({
-      userId: data.userId,
-      projectId: data.projectId,
-    });
-
-    if (existingDonation) {
-      throw new ValidationError('You have already donated to this project');
-    }
+    const project = await Project.findById(projectId).populate('creator', 'name');
+    if (!project) throw new Error('Project not found');
 
     const donation = await Donation.create({
-      userId: data.userId,
-      projectId: data.projectId,
-      message: data.message,
-      amount: data.amount,
-    });
-
-    if (!project.donors.includes(new mongoose.Types.ObjectId(data.userId))) {
-      project.donors.push(new mongoose.Types.ObjectId(data.userId));
-      project.totalDonations += 1;
-      await project.save();
-    }
-
-    return await donation.populate('userId', 'name email');
-  }
-
-  static async getProjectDonors(projectId: string): Promise<IDonation[]> {
-    await connectDB();
-
-    const project = await Project.findById(projectId);
-    if (!project) {
-      throw new NotFoundError('Project');
-    }
-
-    return await Donation.find({ projectId })
-      .populate('userId', 'name email _id')
-      .sort({ donatedAt: -1 });
-  }
-
-  static async getUserDonations(userId: string): Promise<IDonation[]> {
-    await connectDB();
-
-    return await Donation.find({ userId })
-      .populate('projectId', 'title category')
-      .sort({ donatedAt: -1 });
-  }
-
-  static async getDonationStats(projectId: string): Promise<{
-    totalDonors: number;
-    recentDonors: number;
-  }> {
-    await connectDB();
-
-    const total = await Donation.countDocuments({ projectId });
-
-    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-    const recent = await Donation.countDocuments({
+      userId,
       projectId,
-      donatedAt: { $gte: sevenDaysAgo },
+      ...data,
+      receiptId: `RCP-${nanoid().slice(0, 8).toUpperCase()}`,
+      status: 'completed',
     });
 
-    return {
-      totalDonors: total,
-      recentDonors: recent,
-    };
+    // Update project totals
+    if (data.amount) {
+      await Project.findByIdAndUpdate(projectId, {
+        $inc: { totalDonations: data.amount },
+        $addToSet: { donors: userId },
+      });
+    }
+
+    // Update user stats
+    if (data.amount) {
+      await User.findByIdAndUpdate(userId, {
+        $inc: { totalDonated: data.amount, impactScore: Math.floor(data.amount / 10) },
+      });
+    }
+
+    // Check badges
+    const donationCount = await Donation.countDocuments({ userId });
+    if (donationCount === 1) {
+      await UserService.awardBadge(userId, BADGES.firstDonation);
+    }
+
+    const user = await User.findById(userId).select('totalDonated name');
+    if (user && user.totalDonated >= 10000) {
+      await UserService.awardBadge(userId, BADGES.topSupporter);
+    }
+
+    // Notify project creator
+    const creator = project.creator as any;
+    if (creator && creator._id?.toString() !== userId) {
+      const donorName = data.isAnonymous ? 'Someone' : (user?.name || 'A donor');
+      await NotificationService.create({
+        recipient: creator._id.toString(),
+        sender: data.isAnonymous ? undefined : userId,
+        type: 'new_donation',
+        title: 'New Donation!',
+        message: `${donorName} donated${data.amount ? ` ₹${data.amount}` : ' items'} to your project "${project.title}"`,
+        link: `/projects/${projectId}`,
+      });
+    }
+
+    return donation;
+  }
+
+  static async getProjectDonations(projectId: string, limit = 20) {
+    await connectDB();
+    return Donation.find({ projectId, status: 'completed' })
+      .populate('userId', 'name avatar')
+      .sort({ donatedAt: -1 })
+      .limit(limit);
+  }
+
+  static async getTopDonors(projectId: string, limit = 10) {
+    await connectDB();
+    return Donation.aggregate([
+      { $match: { projectId: require('mongoose').Types.ObjectId.createFromHexString(projectId), status: 'completed' } },
+      { $group: { _id: '$userId', total: { $sum: '$amount' }, count: { $sum: 1 } } },
+      { $sort: { total: -1 } },
+      { $limit: limit },
+      { $lookup: { from: 'users', localField: '_id', foreignField: '_id', as: 'user' } },
+      { $unwind: '$user' },
+    ]);
+  }
+
+  static async getUserDonations(userId: string) {
+    await connectDB();
+    return Donation.find({ userId, status: 'completed' })
+      .populate('projectId', 'title images category')
+      .sort({ donatedAt: -1 });
   }
 }

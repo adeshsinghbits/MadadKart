@@ -1,4 +1,5 @@
-import User, { IUser } from '@/lib/models/User';
+import User from '@/lib/models/User';
+import { IUser } from '@/types';
 import { connectDB } from '@/lib/db/mongodb';
 import { generateToken } from '@/lib/auth/jwt';
 import { validateEmail, validatePassword } from '@/lib/utils/validation';
@@ -39,6 +40,7 @@ export class AuthService {
     const token = generateToken({
       userId: user._id.toString(),
       email: user.email,
+      role: user.role
     });
 
     const userObject = user.toObject();
@@ -70,6 +72,7 @@ export class AuthService {
     const token = generateToken({
       userId: user._id.toString(),
       email: user.email,
+      role: user.role
     });
 
     const userObject = user.toObject();
