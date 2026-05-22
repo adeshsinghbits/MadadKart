@@ -3,10 +3,25 @@
   import { useState, useEffect } from 'react';
   import { useRouter } from 'next/navigation';
   import Link from 'next/link';
-  import { MapComponent } from '@/components/MapComponent';
   import { useProjects } from '@/hooks/useProjects';
   import { useAuth } from '@/hooks/useAuth';
   import { CATEGORIES } from '@/lib/utils/constants';
+  import dynamic from 'next/dynamic';
+
+  const MapComponent = dynamic(
+    () =>
+      import('@/components/MapComponent').then(
+        (mod) => mod.MapComponent
+      ),
+    {
+      ssr: false,
+      loading: () => (
+        <div className="h-100 w-full rounded-xl bg-gray-100 animate-pulse flex items-center justify-center">
+          Loading map...
+        </div>
+      ),
+    }
+  );
 
   export default function CreateProjectPage() {
     const router = useRouter();
