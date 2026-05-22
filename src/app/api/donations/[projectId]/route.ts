@@ -4,13 +4,16 @@ import { handleError } from '@/lib/utils/errors';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { projectId: string } }
+  context: { params: Promise<{ projectId: string }> }
 ) {
   try {
-    const donations = await DonationService.getProjectDonors(
-      params.projectId
-    );
-    const stats = await DonationService.getDonationStats(params.projectId);
+    const { projectId } = await context.params;
+
+    const donations =
+      await DonationService.getProjectDonors(projectId);
+
+    const stats =
+      await DonationService.getDonationStats(projectId);
 
     return NextResponse.json({
       donors: donations,
@@ -18,6 +21,10 @@ export async function GET(
     });
   } catch (error) {
     const { statusCode, message } = handleError(error);
-    return NextResponse.json({ error: message }, { status: statusCode });
+
+    return NextResponse.json(
+      { error: message },
+      { status: statusCode }
+    );
   }
 }
