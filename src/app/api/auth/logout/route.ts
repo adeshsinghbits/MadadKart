@@ -1,12 +1,6 @@
-import { NextRequest, NextResponse } from 'next/server';
-
-export async function POST(request: NextRequest) {
-  const response = NextResponse.json(
-    { message: 'Logout successful' },
-    { status: 200 }
-  );
-
-  response.cookies.delete('authToken');
-
-  return response;
+import { NextResponse } from 'next/server';
+export async function POST() {
+  const res = NextResponse.json({ message: 'Logged out' });
+  res.cookies.delete('token');
+  return res;
 }

@@ -4,38 +4,11 @@ import { handleError } from '@/lib/utils/errors';
 
 export async function POST(request: NextRequest) {
   try {
-    const { name, email, password } = await request.json();
-
-    if (!name || !email || !password) {
-      return NextResponse.json(
-        { error: 'Missing required fields' },
-        { status: 400 }
-      );
-    }
-
-    const { user, token } = await AuthService.register({
-      name,
-      email,
-      password,
-    });
-
-    const response = NextResponse.json(
-      {
-        message: 'Registration successful',
-        user,
-        token,
-      },
-      { status: 201 }
-    );
-
-    response.cookies.set('authToken', token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
-      maxAge: 7 * 24 * 60 * 60,
-    });
-
-    return response;
+    const body = await request.json();
+    const { user, token } = await AuthService.register(body);
+    const res = NextResponse.json({ message: 'Registration successful', user, token }, { status: 201 });
+    res.cookies.set('token', token, { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'strict', maxAge: 7 * 86400 });
+    return res;
   } catch (error) {
     const { statusCode, message } = handleError(error);
     return NextResponse.json({ error: message }, { status: statusCode });

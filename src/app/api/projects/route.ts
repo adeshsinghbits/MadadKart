@@ -1,30 +1,25 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { ProjectService } from '@/lib/services/project.service';
-import { verifyToken } from '@/lib/auth/jwt';
+import { withAuth } from '@/lib/middlewares/auth';
 import { handleError } from '@/lib/utils/errors';
+import { createProjectSchema } from '@/lib/validators/project.validator';
 
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const category = searchParams.get('category') || undefined;
-    const search = searchParams.get('search') || undefined;
-    const page = parseInt(searchParams.get('page') || '1');
-    const limit = parseInt(searchParams.get('limit') || '12');
-
-    const { projects, total } = await ProjectService.getAllProjects({
-      category: category,
-      search: search,
-      page,
-      limit,
-    });
-
-    return NextResponse.json({
-      projects,
-      total,
-      page,
-      limit,
-      pages: Math.ceil(total / limit),
-    });
+    const filters = {
+      category: searchParams.get('category') || undefined,
+      search: searchParams.get('search') || undefined,
+      status: searchParams.get('status') || undefined,
+      sort: searchParams.get('sort') || undefined,
+      page: parseInt(searchParams.get('page') || '1'),
+      limit: parseInt(searchParams.get('limit') || '12'),
+      lat: searchParams.get('lat') ? parseFloat(searchParams.get('lat')!) : undefined,
+      lng: searchParams.get('lng') ? parseFloat(searchParams.get('lng')!) : undefined,
+      radius: searchParams.get('radius') ? parseFloat(searchParams.get('radius')!) : undefined,
+    };
+    const { projects, total } = await ProjectService.getAllProjects(filters);
+    return NextResponse.json({ projects, total, page: filters.page, limit: filters.limit, pages: Math.ceil(total / filters.limit) });
   } catch (error) {
     const { statusCode, message } = handleError(error);
     return NextResponse.json({ error: message }, { status: statusCode });
@@ -32,34 +27,23 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  try {
-    const authHeader = request.headers.get('authorization');
-    const token = authHeader?.startsWith('Bearer ')
-      ? authHeader.substring(7)
-      : null;
-
-    if (!token) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  return withAuth(request, async (req, payload) => {
+    try {
+      const body = await request.json();
+      const parsed = createProjectSchema.safeParse(body);
+      if (!parsed.success) {
+        return NextResponse.json(
+          {
+            error: parsed.error.issues[0]?.message || "Validation failed",
+          },
+          { status: 400 }
+        );
+      }
+      const project = await ProjectService.createProject(payload.userId, parsed.data);
+      return NextResponse.json({ message: 'Project created', project }, { status: 201 });
+    } catch (error) {
+      const { statusCode, message } = handleError(error);
+      return NextResponse.json({ error: message }, { status: statusCode });
     }
-
-    const payload = verifyToken(token);
-    if (!payload) {
-      return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
-    }
-
-    const data = await request.json();
-    const project = await ProjectService.createProject(
-      payload.userId,
-      data
-    );
-
-    return NextResponse.json(
-      { message: 'Project created', project },
-      { status: 201 }
-    );
-  } catch (error) {
-    const { statusCode, message } = handleError(error);
-    return NextResponse.json({ error: message }, { status: statusCode });
-  }
+  });
 }
-

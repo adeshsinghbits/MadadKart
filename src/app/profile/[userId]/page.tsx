@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
-import { LoadingSpinner } from '@/components/LoadingSpinner';
-import { ProjectCard } from '@/components/ProjectCard';
+import { LoadingSpinner } from '@/components/shared/LoadingSpinner';
+import { ProjectCard } from '@/components/projects/ProjectCard';
 import { Project } from '@/hooks/useProjects';
 
 interface UserProfile {
@@ -47,6 +47,9 @@ export default function ProfilePage() {
   if (isLoading) return <LoadingSpinner />;
   if (!profile) return <div className="text-center py-12">Profile not found</div>;
 
+  console.log(profile.donatedProjects);
+  
+  
   const initials = profile.user.name
     .split(' ')
     .map(n => n[0])

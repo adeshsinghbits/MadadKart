@@ -4,7 +4,7 @@ import User from '@/lib/models/User';
 import { connectDB } from '@/lib/db/mongodb';
 import { NotificationService } from './notification.service';
 import { UserService } from './user.service';
-import { nanoid } from 'crypto';
+import { nanoid } from "nanoid";
 
 const BADGES = {
   firstDonation: { id: 'first_donation', name: 'First Donor', icon: '💝', description: 'Made your first donation' },

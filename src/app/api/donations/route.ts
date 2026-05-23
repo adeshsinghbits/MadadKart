@@ -1,39 +1,32 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { withAuth } from '@/lib/middlewares/auth';
 import { DonationService } from '@/lib/services/donation.service';
-import { verifyToken } from '@/lib/auth/jwt';
 import { handleError } from '@/lib/utils/errors';
 
 export async function POST(request: NextRequest) {
-  try {
-    const authHeader = request.headers.get('authorization');
-    const token = authHeader?.startsWith('Bearer ')
-      ? authHeader.substring(7)
-      : null;
-
-    if (!token) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  return withAuth(request, async (req, payload) => {
+    try {
+      const { projectId, message, amount, type, isAnonymous } = await request.json();
+      if (!projectId) return NextResponse.json({ error: 'projectId required' }, { status: 400 });
+      const donation = await DonationService.donate(payload.userId, projectId, {
+        type: type || 'money', amount, message, isAnonymous: isAnonymous || false,
+      });
+      return NextResponse.json({ message: 'Donation recorded', donation }, { status: 201 });
+    } catch (error) {
+      const { statusCode, message } = handleError(error);
+      return NextResponse.json({ error: message }, { status: statusCode });
     }
+  });
+}
 
-    const payload = verifyToken(token);
-    if (!payload) {
-      return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
+export async function GET(request: NextRequest) {
+  return withAuth(request, async (req, payload) => {
+    try {
+      const donations = await DonationService.getUserDonations(payload.userId);
+      return NextResponse.json({ donations });
+    } catch (error) {
+      const { statusCode, message } = handleError(error);
+      return NextResponse.json({ error: message }, { status: statusCode });
     }
-
-    const { projectId, message, amount } = await request.json();
-
-    const donation = await DonationService.createDonation({
-      userId: payload.userId,
-      projectId,
-      message,
-      amount,
-    });
-
-    return NextResponse.json(
-      { message: 'Donation created', donation },
-      { status: 201 }
-    );
-  } catch (error) {
-    const { statusCode, message } = handleError(error);
-    return NextResponse.json({ error: message }, { status: statusCode });
-  }
+  });
 }
