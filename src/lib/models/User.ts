@@ -1,5 +1,6 @@
 import mongoose, { Schema, Document } from 'mongoose';
 import bcrypt from 'bcryptjs';
+import crypto from 'crypto';
 
 export interface IUserDoc extends Document {
   name: string;
@@ -23,17 +24,17 @@ export interface IUserDoc extends Document {
   volunteeringHours: number;
   streakDays: number;
   lastActiveAt: Date;
+  passwordResetToken?: string;
+  passwordResetExpires?: Date;
   createdAt: Date;
   updatedAt: Date;
   comparePassword(password: string): Promise<boolean>;
+  createPasswordResetToken(): string;
 }
 
 const BadgeSchema = new Schema({
-  id: String,
-  name: String,
-  icon: String,
-  description: String,
-  earnedAt: { type: Date, default: Date.now },
+  id: String, name: String, icon: String,
+  description: String, earnedAt: { type: Date, default: Date.now },
 }, { _id: false });
 
 const UserSchema = new Schema<IUserDoc>(
@@ -47,11 +48,7 @@ const UserSchema = new Schema<IUserDoc>(
     bio: { type: String, maxlength: 500 },
     location: String,
     website: String,
-    socialLinks: {
-      twitter: String,
-      linkedin: String,
-      instagram: String,
-    },
+    socialLinks: { twitter: String, linkedin: String, instagram: String },
     isVerified: { type: Boolean, default: true },
     isNGO: { type: Boolean, default: false },
     ngoVerified: { type: Boolean, default: false },
@@ -63,13 +60,15 @@ const UserSchema = new Schema<IUserDoc>(
     volunteeringHours: { type: Number, default: 0 },
     streakDays: { type: Number, default: 0 },
     lastActiveAt: { type: Date, default: Date.now },
+    passwordResetToken: { type: String, select: false },
+    passwordResetExpires: { type: Date, select: false },
   },
   { timestamps: true }
 );
 
 UserSchema.pre('save', async function () {
   if (!this.isModified('password')) return;
-  const salt = await bcrypt.genSalt(10);
+  const salt = await bcrypt.genSalt(12);
   this.password = await bcrypt.hash(this.password, salt);
 });
 
@@ -77,8 +76,16 @@ UserSchema.methods.comparePassword = async function (password: string): Promise<
   return bcrypt.compare(password, this.password);
 };
 
+UserSchema.methods.createPasswordResetToken = function (): string {
+  const rawToken = crypto.randomBytes(32).toString('hex');
+  this.passwordResetToken = crypto.createHash('sha256').update(rawToken).digest('hex');
+  this.passwordResetExpires = new Date(Date.now() + 60 * 60 * 1000); 
+  return rawToken;
+};
+
 UserSchema.index({ email: 1 });
 UserSchema.index({ role: 1 });
 UserSchema.index({ impactScore: -1 });
+UserSchema.index({ passwordResetToken: 1 });
 
 export default mongoose.models.User || mongoose.model<IUserDoc>('User', UserSchema);

@@ -1,16 +1,5 @@
 'use client';
 
-/**
- * MapClient — full-featured interactive map for the /map page
- * Features:
- *  - Geoapify styled tiles (positron / dark-matter)
- *  - Marker clustering via leaflet.markercluster
- *  - Category-coloured custom markers
- *  - Popup project preview cards
- *  - User location circle
- *  - Radius search ring
- *  - Programmatic fly-to
- */
 
 import 'leaflet/dist/leaflet.css';
 import 'leaflet.markercluster/dist/MarkerCluster.css';
@@ -203,7 +192,11 @@ const MapClient = forwardRef<MapClientRef, MapClientProps>(
       }) as L.MarkerClusterGroup;
 
       cluster.addTo(map);
+
+      const projectLayer = L.layerGroup().addTo(map);
+
       clusterRef.current = cluster;
+      projectLayerRef.current = projectLayer;
       mapRef.current = map;
 
       return () => {
