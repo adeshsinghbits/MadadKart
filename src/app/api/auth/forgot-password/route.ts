@@ -30,11 +30,16 @@ export async function POST(request: NextRequest) {
     const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
     const resetUrl = `${appUrl}/reset-password?token=${rawToken}&email=${encodeURIComponent(user.email)}`;
 
-    const emailPayload = buildPasswordResetEmail(user.name, resetUrl);
-    emailPayload.to = user.email;
+    const emailPayload = buildPasswordResetEmail(
+          user.name,
+          resetUrl
+        );
 
-    try {
-      await sendEmail(emailPayload);
+        try {
+          await sendEmail({
+            to: user.email,
+            ...emailPayload,
+          });
     } catch (emailErr) {
       // Roll back token if email fails
       user.passwordResetToken = undefined;
