@@ -54,6 +54,7 @@ export default function CreateProjectPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
   const [currentStep, setCurrentStep] = useState(0);
+  const [uploadingImages, setUploadingImages] = useState(false);
 
   const [form, setForm] = useState({
     firstName: '',
@@ -74,6 +75,53 @@ export default function CreateProjectPage() {
   });
 
   const [supportItems, setSupportItems] = useState<SupportItem[]>([{ ...BLANK_ITEM }]);
+
+  const handleImageUpload = async (
+  e: React.ChangeEvent<HTMLInputElement>
+) => {
+  const files = e.target.files;
+
+  if (!files || files.length === 0) return;
+
+  try {
+    setUploadingImages(true);
+
+    const uploadedUrls: string[] = [];
+
+    for (const file of Array.from(files)) {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const res = await fetch('/api/upload', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        body: formData,
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || 'Upload failed');
+      }
+
+      uploadedUrls.push(data.url);
+    }
+
+    setForm(prev => ({
+      ...prev,
+      images: [...prev.images, ...uploadedUrls],
+    }));
+  } catch (error) {
+    console.error(error);
+    setSubmitError(
+      error instanceof Error ? error.message : 'Image upload failed'
+    );
+  } finally {
+    setUploadingImages(false);
+  }
+};
 
   // Pre-fill name
   useEffect(() => {
@@ -184,6 +232,65 @@ export default function CreateProjectPage() {
                   <Field label="Last Name">
                     <input className={inputCls} value={form.lastName} onChange={e => set('lastName', e.target.value)} required placeholder="Sharma" />
                   </Field>
+                </div>
+              </Section>
+
+              <Section title="Project Images" icon={<Plus size={18} />}>
+                <div className="space-y-4">
+
+                  <label
+                    className="border-2 border-dashed border-border rounded-2xl p-8 flex flex-col items-center justify-center cursor-pointer hover:border-primary transition-all"
+                  >
+                    <input
+                      type="file"
+                      multiple
+                      accept="image/*"
+                      className="hidden"
+                      onChange={handleImageUpload}
+                    />
+
+                    <div className="text-center">
+                      <p className="font-medium">
+                        {uploadingImages
+                          ? 'Uploading...'
+                          : 'Click to upload project images'}
+                      </p>
+
+                      <p className="text-sm text-muted-foreground mt-1">
+                        PNG, JPG, WEBP
+                      </p>
+                    </div>
+                  </label>
+
+                  {form.images.length > 0 && (
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                      {form.images.map((img, index) => (
+                        <div
+                          key={index}
+                          className="relative rounded-xl overflow-hidden border border-border"
+                        >
+                          <img
+                            src={img}
+                            alt={`Project ${index}`}
+                            className="w-full h-40 object-cover"
+                          />
+
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setForm(prev => ({
+                                ...prev,
+                                images: prev.images.filter((_, i) => i !== index),
+                              }))
+                            }
+                            className="absolute top-2 right-2 bg-black/70 text-white rounded-full p-1"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </Section>
 
