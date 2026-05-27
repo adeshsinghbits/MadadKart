@@ -253,7 +253,7 @@ export default function DashboardPage() {
       {/* ── Tab bar ─────────────────────────────────────────── */}
       <div className="sticky top-16 z-30 bg-white border-b border-border shadow-sm">
         <div className="max-w-6xl mx-auto px-4">
-          <div className="flex overflow-x-auto">
+          <div className="flex overflow-x-auto overflow-y-hidden">
             {TABS.map(tab => (
               <button key={tab.key} onClick={() => setActiveTab(tab.key as any)}
                 className={`flex items-center gap-2 px-5 py-3.5 text-sm font-medium border-b-2 -mb-px transition-colors whitespace-nowrap ${

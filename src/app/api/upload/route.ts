@@ -20,8 +20,16 @@ export async function POST(request: NextRequest) {
 
       const cloudRes = await fetch(cloudinaryUrl, { method: 'POST', body: formDataCloud });
       if (!cloudRes.ok) {
-        // Return a placeholder if Cloudinary not configured
-        return NextResponse.json({ url: `https://api.dicebear.com/7.x/shapes/svg?seed=${Date.now()}` });
+        const err = await cloudRes.json();
+
+        console.log('Cloudinary Error:', err);
+
+        return NextResponse.json(
+          {
+            error: err,
+          },
+          { status: 500 }
+        );
       }
       const cloudData = await cloudRes.json();
       return NextResponse.json({ url: cloudData.secure_url });

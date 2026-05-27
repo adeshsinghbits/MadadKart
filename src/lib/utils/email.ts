@@ -49,9 +49,6 @@ export async function sendEmail(
   }
 }
 
-/* ─────────────────────────────────────────────
-   Password Reset Template
-───────────────────────────────────────────── */
 export function buildPasswordResetEmail(
   name: string,
   resetUrl: string
